@@ -74,7 +74,11 @@ Optional issue enrichment for Slack requests:
 - Jira: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
 
 Optional provider postback from worker:
-- GitHub issue comments: `GITHUB_API_TOKEN`
+- GitHub issue comments:
+  - `GITHUB_POSTBACK_MODE=auto|api|gh` (default `auto`)
+  - `auto`: use `GITHUB_API_TOKEN` if set, otherwise run `gh issue comment`
+  - `api`: require `GITHUB_API_TOKEN`
+  - `gh`: require authenticated GitHub CLI (`gh auth status`)
 - Jira issue comments: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
 - When credentials are missing, jobs still complete and skip provider postback.
 

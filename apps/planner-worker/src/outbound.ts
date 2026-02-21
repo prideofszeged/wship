@@ -1,6 +1,15 @@
+import { randomUUID } from "node:crypto";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+import { rm, writeFile } from "node:fs/promises";
+import os from "node:os";
+import path from "node:path";
 import type { PlanJobPayload, PlanPipelineResult, QueueJob } from "@issue-planner/core";
 
+const execFileAsync = promisify(execFile);
+
 export interface OutboundConfig {
+  githubPostbackMode: "api" | "gh" | "auto";
   githubApiToken?: string;
   jiraBaseUrl?: string;
   jiraEmail?: string;
@@ -117,6 +126,52 @@ async function postGitHubComment(args: {
   };
 }
 
+async function postGitHubCommentViaGh(args: {
+  repoFullName: string;
+  issueNumber: number;
+  body: string;
+}): Promise<ProviderPostResult> {
+  const [owner, repo] = args.repoFullName.split("/");
+  if (!owner || !repo) {
+    return { attempted: false, reason: "invalid_repo_full_name" };
+  }
+
+  const tempFile = path.join(os.tmpdir(), `issue-planner-gh-body-${randomUUID()}.md`);
+  try {
+    await writeFile(tempFile, truncate(args.body, 60000), "utf8");
+    await execFileAsync(
+      "gh",
+      [
+        "issue",
+        "comment",
+        String(args.issueNumber),
+        "--repo",
+        args.repoFullName,
+        "--body-file",
+        tempFile,
+      ],
+      { maxBuffer: 1024 * 1024 * 4 },
+    );
+
+    return {
+      attempted: true,
+      ok: true,
+      provider: "github",
+      status: 200,
+    };
+  } catch (error) {
+    const err = error as Error & { code?: string | number };
+    return {
+      attempted: true,
+      ok: false,
+      provider: "github",
+      error: `github_cli_comment_failed${err?.code ? `_${String(err.code)}` : ""}`,
+    };
+  } finally {
+    await rm(tempFile, { force: true });
+  }
+}
+
 async function postJiraComment(args: {
   issueKey: string;
   baseUrl: string;
@@ -165,11 +220,36 @@ export async function postProviderResult(args: {
   const comment = buildProviderComment({ job, result });
 
   if (job.payload.provider === "github") {
-    if (!config.githubApiToken) {
-      return { attempted: false, reason: "missing_github_api_token" };
+    if (config.githubPostbackMode === "api") {
+      if (!config.githubApiToken) {
+        return { attempted: false, reason: "missing_github_api_token" };
+      }
+      return postGitHubComment({
+        token: config.githubApiToken,
+        repoFullName: job.payload.repoFullName,
+        issueNumber: job.payload.issueNumber,
+        body: comment,
+      });
     }
-    return postGitHubComment({
-      token: config.githubApiToken,
+
+    if (config.githubPostbackMode === "gh") {
+      return postGitHubCommentViaGh({
+        repoFullName: job.payload.repoFullName,
+        issueNumber: job.payload.issueNumber,
+        body: comment,
+      });
+    }
+
+    if (config.githubApiToken) {
+      return postGitHubComment({
+        token: config.githubApiToken,
+        repoFullName: job.payload.repoFullName,
+        issueNumber: job.payload.issueNumber,
+        body: comment,
+      });
+    }
+
+    return postGitHubCommentViaGh({
       repoFullName: job.payload.repoFullName,
       issueNumber: job.payload.issueNumber,
       body: comment,
