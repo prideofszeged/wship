@@ -2,6 +2,7 @@ export interface GitHubIssueRef {
   number: number;
   title?: string;
   body?: string;
+  html_url?: string;
   labels?: Array<{ name?: string }>;
 }
 

@@ -26,14 +26,16 @@ export function parseGitHubIssueCommentEvent(eventName: string, payload: unknown
 
   const labels = (body.issue?.labels ?? []).map((l) => l.name ?? "").filter(Boolean);
   const issueBody = body.issue?.body ?? "";
-  const repoHint = parseRepoHint(labels, [issueBody, commentBody]);
+  const repoHint = body.repository?.full_name ?? parseRepoHint(labels, [issueBody, commentBody]);
   const numericIssueNumber = body.issue?.number;
+  const issueUrl = body.issue?.html_url;
   const workItem = {
     id: issueId,
     title: body.issue?.title ?? "(untitled issue)",
     body: issueBody,
     labels,
     ...(typeof numericIssueNumber === "number" ? { numericIssueNumber } : {}),
+    ...(issueUrl ? { url: issueUrl } : {}),
     ...(repoHint ? { repoHint } : {}),
   };
 

@@ -73,6 +73,11 @@ Optional issue enrichment for Slack requests:
 - GitHub: `GITHUB_API_TOKEN`
 - Jira: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
 
+Optional provider postback from worker:
+- GitHub issue comments: `GITHUB_API_TOKEN`
+- Jira issue comments: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
+- When credentials are missing, jobs still complete and skip provider postback.
+
 Optional Slack guardrail:
 - `SLACK_ALLOWED_TEAM_ID` to only accept one workspace.
 

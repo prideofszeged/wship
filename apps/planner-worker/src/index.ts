@@ -7,6 +7,7 @@ import {
 } from "@issue-planner/core";
 import { loadConfig } from "./config.js";
 import { postSlackResult } from "./slack.js";
+import { postProviderResult } from "./outbound.js";
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -36,6 +37,54 @@ for (;;) {
       | { attempted: true; ok: false; status?: number; error: string; postedAt: string }
       | { attempted: false }
       | undefined;
+    let providerCallback:
+      | { attempted: false; reason: string }
+      | { attempted: true; ok: true; status: number; provider: "github" | "jira"; postedAt: string }
+      | {
+          attempted: true;
+          ok: false;
+          provider: "github" | "jira";
+          error: string;
+          status?: number;
+          postedAt: string;
+        }
+      | undefined;
+
+    const providerPostResult = await postProviderResult({
+      config,
+      job: claimed.job,
+      result,
+    });
+
+    if (!providerPostResult.attempted) {
+      providerCallback = providerPostResult;
+    } else if (providerPostResult.ok) {
+      providerCallback = {
+        ...providerPostResult,
+        postedAt: new Date().toISOString(),
+      };
+
+      logInfo("provider_result_posted", {
+        jobId: claimed.id,
+        provider: providerPostResult.provider,
+        workItemId: claimed.job.payload.workItemId,
+        score: result.score.total,
+        status: result.status,
+        responseStatus: providerPostResult.status,
+      });
+    } else {
+      providerCallback = {
+        ...providerPostResult,
+        postedAt: new Date().toISOString(),
+      };
+
+      logError("provider_result_post_failed", {
+        jobId: claimed.id,
+        provider: providerPostResult.provider,
+        error: providerPostResult.error,
+        ...(providerPostResult.status ? { responseStatus: providerPostResult.status } : {}),
+      });
+    }
 
     if (claimed.job.payload.slackResponseUrl) {
       const postedAt = new Date().toISOString();
@@ -89,6 +138,7 @@ for (;;) {
       timingsMs: result.timingsMs,
       runtimeMs: Date.now() - startedAt,
       ...(slackCallback ? { slackCallback } : {}),
+      ...(providerCallback ? { providerCallback } : {}),
     };
 
     await queue.complete(claimed, completedPayload);
