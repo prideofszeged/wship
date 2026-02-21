@@ -73,6 +73,16 @@ Optional issue enrichment for Slack requests:
 - GitHub: `GITHUB_API_TOKEN`
 - Jira: `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`
 
+Planner LLM configuration (worker):
+- `PLANNER_LLM_PROVIDER=none|codex|claude` (default `none`)
+- `PLANNER_LLM_MODEL=<model-name>` (optional; provider defaults used if unset)
+- `PLANNER_LLM_TIMEOUT_MS=120000` (optional)
+- `PLANNER_CODEX_BIN=<absolute-path-to-codex>` (optional PATH override)
+- `PLANNER_CLAUDE_BIN=<absolute-path-to-claude>` (optional PATH override)
+- `codex` provider uses local `codex exec` CLI with JSON schema output.
+- `claude` provider uses local `claude -p` CLI with JSON schema output.
+- If LLM is misconfigured or returns invalid output, planner falls back to template mode and records a critic note.
+
 Optional provider postback from worker:
 - GitHub issue comments:
   - `GITHUB_POSTBACK_MODE=auto|api|gh` (default `auto`)

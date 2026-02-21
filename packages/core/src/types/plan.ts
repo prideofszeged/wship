@@ -94,3 +94,18 @@ export interface PlanPipelineResult {
     total: number;
   };
 }
+
+export type PlannerLlmProvider = "none" | "codex" | "claude";
+
+export interface PlannerLlmConfig {
+  provider: PlannerLlmProvider;
+  model?: string;
+  timeoutMs?: number;
+  codexBin?: string;
+  claudeBin?: string;
+}
+
+export interface PlanPipelineOptions {
+  mode?: PlanMode;
+  llm?: PlannerLlmConfig;
+}

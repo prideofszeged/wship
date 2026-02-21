@@ -20,6 +20,8 @@ await queue.init();
 logInfo("planner_worker_started", {
   queueDir: config.queueDir,
   pollMs: config.pollMs,
+  plannerLlmProvider: config.plannerLlmProvider,
+  ...(config.plannerLlmModel ? { plannerLlmModel: config.plannerLlmModel } : {}),
 });
 
 for (;;) {
@@ -31,7 +33,16 @@ for (;;) {
     }
 
     const startedAt = Date.now();
-    const result = runPlanPipeline(claimed.job.payload);
+    const result = await runPlanPipeline(claimed.job.payload, {
+      mode: claimed.job.mode,
+      llm: {
+        provider: config.plannerLlmProvider,
+        ...(config.plannerLlmModel ? { model: config.plannerLlmModel } : {}),
+        timeoutMs: config.plannerLlmTimeoutMs,
+        ...(config.plannerCodexBin ? { codexBin: config.plannerCodexBin } : {}),
+        ...(config.plannerClaudeBin ? { claudeBin: config.plannerClaudeBin } : {}),
+      },
+    });
     let slackCallback:
       | { attempted: true; ok: true; status: number; postedAt: string }
       | { attempted: true; ok: false; status?: number; error: string; postedAt: string }
@@ -156,6 +167,7 @@ for (;;) {
       runtimeMs: Date.now() - startedAt,
       retrievalMs: result.timingsMs.retrieval,
       llmMs: result.timingsMs.planner + result.timingsMs.critic,
+      plannerLlmProvider: config.plannerLlmProvider,
     });
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

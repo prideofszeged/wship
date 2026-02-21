@@ -1,4 +1,4 @@
-import type { PlanJobPayload, PlanPipelineResult } from "../types/plan.js";
+import type { PlanJobPayload, PlanPipelineOptions, PlanPipelineResult } from "../types/plan.js";
 import { buildRetrievedContext } from "../retrieval/contextBuilder.js";
 import { plannerStage } from "./planner.js";
 import { criticStage } from "./critic.js";
@@ -8,7 +8,7 @@ import { finalizePlan } from "./finalizer.js";
 
 const QUALITY_THRESHOLD = 70;
 
-export function runPlanPipeline(payload: PlanJobPayload): PlanPipelineResult {
+export async function runPlanPipeline(payload: PlanJobPayload, options?: PlanPipelineOptions): Promise<PlanPipelineResult> {
   const startedAt = Date.now();
 
   const retrievalStart = Date.now();
@@ -16,11 +16,17 @@ export function runPlanPipeline(payload: PlanJobPayload): PlanPipelineResult {
   const retrievalMs = Date.now() - retrievalStart;
 
   const plannerStart = Date.now();
-  const draft = plannerStage(payload, retrieved);
+  const planner = await plannerStage({
+    payload,
+    ctx: retrieved,
+    ...(options?.mode ? { mode: options.mode } : {}),
+    ...(options?.llm ? { llm: options.llm } : {}),
+  });
   const plannerMs = Date.now() - plannerStart;
 
   const criticStart = Date.now();
-  const critic = criticStage(payload, retrieved, draft);
+  const critic = criticStage(payload, retrieved, planner.draft);
+  const criticNotes = [...planner.notes, ...critic.notes];
   const criticMs = Date.now() - criticStart;
 
   const scoringStart = Date.now();
@@ -31,7 +37,10 @@ export function runPlanPipeline(payload: PlanJobPayload): PlanPipelineResult {
   const finalizerStart = Date.now();
   const finalized = finalizePlan({
     draft: critic.revisedDraft,
-    critic,
+    critic: {
+      ...critic,
+      notes: criticNotes,
+    },
     score,
     handoff,
     threshold: QUALITY_THRESHOLD,
@@ -43,7 +52,7 @@ export function runPlanPipeline(payload: PlanJobPayload): PlanPipelineResult {
     markdown: finalized.markdown,
     score,
     handoff,
-    criticNotes: critic.notes,
+    criticNotes,
     timingsMs: {
       retrieval: retrievalMs,
       planner: plannerMs,
