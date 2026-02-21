@@ -1,9 +1,27 @@
 node_modules/
+
+# Build outputs
 dist/
+**/dist/
+*.tsbuildinfo
+
+# Logs
 *.log
 logs/
+
+# Environment files
 .env
 .env.*
+!.env.example
+
+# Runtime queue state
+.run/
+data/queue/pending/
 data/queue/processing/
 data/queue/completed/
 data/queue/failed/
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/

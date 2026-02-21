@@ -40,20 +40,33 @@ export async function postSlackResult(args: {
   responseUrl: string;
   job: QueueJob<PlanJobPayload>;
   result: PlanPipelineResult;
-}): Promise<void> {
-  const response = await fetch(args.responseUrl, {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-    },
-    body: JSON.stringify({
-      response_type: "ephemeral",
-      replace_original: false,
-      text: buildSlackText({ job: args.job, result: args.result }),
-    }),
-  });
+}): Promise<{ ok: true; status: number } | { ok: false; status?: number; error: string }> {
+  try {
+    const response = await fetch(args.responseUrl, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({
+        response_type: "ephemeral",
+        replace_original: false,
+        text: buildSlackText({ job: args.job, result: args.result }),
+      }),
+    });
 
-  if (!response.ok) {
-    throw new Error(`slack_response_url_http_${response.status}`);
+    if (!response.ok) {
+      return {
+        ok: false,
+        status: response.status,
+        error: `slack_response_url_http_${response.status}`,
+      };
+    }
+
+    return { ok: true, status: response.status };
+  } catch (error) {
+    return {
+      ok: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

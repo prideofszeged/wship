@@ -28,6 +28,22 @@ npm run dev:worker
 npm run dev:github-app
 ```
 
+## Process Control
+Use the provided process manager to run both services in the background:
+```bash
+make start
+make status
+make logs
+make logs-follow
+make restart
+make stop
+```
+
+Notes:
+- Reads env from `.env` (supports `KEY=value` and `export KEY=value`).
+- Writes PID files to `.run/` and logs to `logs/`.
+- `make start` runs `npm run build` first unless `SKIP_BUILD=1`.
+
 ## Webhook Endpoints
 - `POST /webhooks/github`
 - `POST /webhooks/jira`
