@@ -341,7 +341,11 @@ async function callClaudeLlm(args: {
   claudeBin?: string;
 }): Promise<LlmCallResult> {
   const prompt = `${args.systemPrompt}\n\n${args.userPrompt}`;
-  const commandArgs = [
+  const commandArgs: string[] = [];
+  if (args.model) {
+    commandArgs.push("--model", args.model);
+  }
+  commandArgs.push(
     "-p",
     "--output-format",
     "json",
@@ -350,10 +354,7 @@ async function callClaudeLlm(args: {
     "--tools",
     "",
     prompt,
-  ];
-  if (args.model) {
-    commandArgs.splice(2, 0, "--model", args.model);
-  }
+  );
 
   try {
     const result = await execFileAsync(args.claudeBin ?? "claude", commandArgs, {

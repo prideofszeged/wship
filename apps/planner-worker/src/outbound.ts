@@ -160,12 +160,19 @@ async function postGitHubCommentViaGh(args: {
       status: 200,
     };
   } catch (error) {
-    const err = error as Error & { code?: string | number };
+    const err = error as Error & { code?: string | number; stderr?: string };
+    const stderr =
+      typeof err.stderr === "string"
+        ? err.stderr
+            .replace(/\s+/g, " ")
+            .trim()
+            .slice(0, 180)
+        : "";
     return {
       attempted: true,
       ok: false,
       provider: "github",
-      error: `github_cli_comment_failed${err?.code ? `_${String(err.code)}` : ""}`,
+      error: `github_cli_comment_failed${err?.code ? `_${String(err.code)}` : ""}${stderr ? `:${stderr}` : ""}`,
     };
   } finally {
     await rm(tempFile, { force: true });
