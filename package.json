@@ -1,0 +1,20 @@
+{
+  "name": "issue-planner-mvp",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "tsc -b",
+    "clean": "rm -rf apps/*/dist packages/*/dist",
+    "typecheck": "tsc -b --pretty",
+    "dev:github-app": "node apps/github-app/dist/index.js",
+    "dev:worker": "node apps/planner-worker/dist/index.js"
+  },
+  "devDependencies": {
+    "@types/node": "^25.3.0",
+    "typescript": "^5.7.3"
+  }
+}

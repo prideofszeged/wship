@@ -1,0 +1,96 @@
+import type { IntegrationProvider } from "./integration.js";
+
+export type PlanMode = "quick" | "full";
+export type PlanIntent = "plan" | "replan";
+
+export interface ParsedPlanCommand {
+  intent: PlanIntent;
+  mode: PlanMode;
+  raw: string;
+}
+
+export interface PlanJobPayload {
+  provider: IntegrationProvider;
+  sourceEvent: string;
+  requestOrigin?: "webhook" | "slack";
+  workItemId: string;
+  workItemUrl?: string;
+  projectKey?: string;
+  repoFullName: string;
+  repoResolution: "provided" | "mapped" | "unresolved";
+  issueNumber: number;
+  issueTitle: string;
+  issueBody: string;
+  issueLabels: string[];
+  commentBody: string;
+  commentAuthor: string;
+  slackResponseUrl?: string;
+  slackChannelId?: string;
+  slackUserId?: string;
+  slackTeamId?: string;
+  existingRevision?: number;
+}
+
+export type PlanJobType = "PLAN_REQUEST" | "REPLAN_REQUEST";
+
+export interface QueueJob<TPayload> {
+  id: string;
+  createdAt: string;
+  idempotencyKey: string;
+  type: PlanJobType;
+  payload: TPayload;
+  mode: PlanMode;
+}
+
+export interface RetrievedContext {
+  structuralFileMentions: string[];
+  symbolMentions: string[];
+  relatedIssueMentions: string[];
+  candidateFiles: string[];
+  historicalHints: string[];
+}
+
+export interface PlanDraft {
+  summary: string;
+  research: string;
+  designChoices: string;
+  phases: string;
+  tasks: string;
+  risks: string;
+  testing: string;
+  handoffPrompt: string;
+}
+
+export interface CriticOutput {
+  revisedDraft: PlanDraft;
+  notes: string[];
+}
+
+export interface ScoreBreakdown {
+  completeness: number;
+  specificity: number;
+  testability: number;
+  riskCoverage: number;
+  total: number;
+}
+
+export interface HandoffValidation {
+  passed: boolean;
+  reasons: string[];
+}
+
+export interface PlanPipelineResult {
+  status: "ready" | "needs_revision";
+  markdown: string;
+  score: ScoreBreakdown;
+  handoff: HandoffValidation;
+  criticNotes: string[];
+  timingsMs: {
+    retrieval: number;
+    planner: number;
+    critic: number;
+    scoring: number;
+    finalizer: number;
+    total: number;
+  };
+}

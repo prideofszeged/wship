@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+logs/
+.env
+.env.*
+data/queue/processing/
+data/queue/completed/
+data/queue/failed/

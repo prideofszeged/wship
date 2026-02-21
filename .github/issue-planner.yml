@@ -1,0 +1,38 @@
+version: 1
+
+modes:
+  quick:
+    token_budget: 50000
+  full:
+    token_budget: 200000
+
+quality:
+  score_threshold: 70
+  min_file_references: 5
+
+retrieval:
+  excluded_paths:
+    - node_modules/**
+    - vendor/**
+    - dist/**
+    - build/**
+
+commands:
+  enabled:
+    - /plan
+    - /replan
+
+integrations:
+  github:
+    enabled: true
+  jira:
+    enabled: true
+  slack:
+    enabled: true
+  linear:
+    enabled: false
+  gitlab:
+    enabled: false
+
+autoplan:
+  enabled: false
