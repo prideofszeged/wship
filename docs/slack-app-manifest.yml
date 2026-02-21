@@ -13,12 +13,12 @@ features:
     always_online: false
   slash_commands:
     - command: /plan
-      url: https://YOUR_PUBLIC_DOMAIN/webhooks/slack
+      url: https://ai-workflow.toolchad.net/webhooks/slack
       description: Create a plan for a GitHub issue or Jira ticket
       usage_hint: "<target> [--quick|--full] [repo=owner/repo]"
       should_escape: true
     - command: /replan
-      url: https://YOUR_PUBLIC_DOMAIN/webhooks/slack
+      url: https://ai-workflow.toolchad.net/webhooks/slack
       description: Replan an existing GitHub issue or Jira ticket
       usage_hint: "<target> [repo=owner/repo]"
       should_escape: true
