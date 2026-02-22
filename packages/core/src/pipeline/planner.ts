@@ -132,7 +132,7 @@ function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode
   return lines.join("\n");
 }
 
-function extractJsonObject(text: string): Record<string, unknown> | null {
+export function extractJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
   if (!trimmed) {
     return null;
@@ -162,7 +162,7 @@ function countDraftFields(candidate: Record<string, unknown>): number {
   }, 0);
 }
 
-function resolvePlanObject(candidate: Record<string, unknown>): Record<string, unknown> {
+export function resolvePlanObject(candidate: Record<string, unknown>): Record<string, unknown> {
   if (countDraftFields(candidate) > 0) {
     return candidate;
   }
@@ -193,7 +193,7 @@ function resolvePlanObject(candidate: Record<string, unknown>): Record<string, u
   return candidate;
 }
 
-function normalizeLlmDraft(candidate: Record<string, unknown>, fallback: PlanDraft): { draft: PlanDraft; missing: string[] } {
+export function normalizeLlmDraft(candidate: Record<string, unknown>, fallback: PlanDraft): { draft: PlanDraft; missing: string[] } {
   const out: PlanDraft = { ...fallback };
   const missing: string[] = [];
 
