@@ -71,7 +71,8 @@ Results are posted back as comments: GitHub (API token or `gh` CLI), Jira (REST 
 
 - `PlanJobPayload` — Unified job payload with provider, workItemId, repo info, issue metadata, and optional Slack fields
 - `PlanDraft` — LLM output structure: summary, research, designChoices, phases, tasks, risks, testing, handoffPrompt
-- `PlanPipelineResult` — Pipeline output: status, markdown, score breakdown, critic notes, timings
+- `PlanPipelineResult` — Pipeline output: status, markdown, score breakdown, critic notes, `plannerMeta`, timings
+- `PlannerRunMetadata` — Observability for each pipeline run: source (`llm`/`llm-partial`/`template`), providers attempted with timing, template-filled fields
 - `QueueJob<T>` — Queue wrapper with id, idempotencyKey, type (`PLAN_REQUEST`/`REPLAN_REQUEST`), mode (`quick`/`full`)
 
 ## Environment
@@ -79,6 +80,9 @@ Results are posted back as comments: GitHub (API token or `gh` CLI), Jira (REST 
 Configuration is via `.env` file (see `.env.example`). Key variables:
 
 - `PLANNER_LLM_PROVIDER=none|codex|claude` — LLM backend for plan generation (default: `none` = template mode)
+- `PLANNER_LLM_FALLBACK=codex|claude` — Secondary provider tried when primary fails before template fallback
+- `PLANNER_LLM_TIMEOUT_MS` — Timeout for full-mode LLM calls (default: 120000ms)
+- `PLANNER_LLM_TIMEOUT_QUICK_MS` — Timeout for quick-mode LLM calls (default: 45000ms)
 - `GITHUB_POSTBACK_MODE=auto|api|gh` — How to post comments back to GitHub
 - `REPO_MAP_JSON` — Maps non-repo-native tracker keys to GitHub repos (e.g., `{"jira:ENG":"org/repo"}`)
 - `SLACK_ALLOWED_TEAM_ID` — Restricts Slack commands to one workspace
