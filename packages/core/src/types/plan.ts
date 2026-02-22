@@ -99,6 +99,7 @@ export type PlannerLlmProvider = "none" | "codex" | "claude";
 
 export interface PlannerLlmConfig {
   provider: PlannerLlmProvider;
+  fallback?: Exclude<PlannerLlmProvider, "none">;  // secondary provider tried before template fallback
   model?: string;
   timeoutMs?: number;
   codexBin?: string;

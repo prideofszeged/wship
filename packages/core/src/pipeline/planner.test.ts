@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { extractJsonObject, resolvePlanObject, normalizeLlmDraft, buildLlmSystemPrompt, buildLlmUserPrompt } from "./planner.js";
+import { extractJsonObject, resolvePlanObject, normalizeLlmDraft, buildLlmSystemPrompt, buildLlmUserPrompt, selectDraftFromResults } from "./planner.js";
 import type { PlanDraft, PlanJobPayload, RetrievedContext } from "../types/plan.js";
 
 const FULL_DRAFT: PlanDraft = {
@@ -177,5 +177,79 @@ describe("buildLlmUserPrompt", () => {
     const quick = buildLlmUserPrompt(TEST_PAYLOAD, manyFiles, "quick");
     const full = buildLlmUserPrompt(TEST_PAYLOAD, manyFiles, "full");
     assert.ok(quick.length < full.length, "Quick mode prompt should be shorter than full mode");
+  });
+});
+
+describe("selectDraftFromResults", () => {
+  const goodText = JSON.stringify(FULL_DRAFT);
+
+  it("returns LLM draft when first attempt succeeds", () => {
+    const attempts = [
+      {
+        result: { ok: true as const, provider: "codex" as const, text: goodText },
+        durationMs: 100,
+      },
+    ];
+    const { draft, notes, providersAttempted } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(notes.length, 0);
+    assert.equal(draft.summary, FULL_DRAFT.summary);
+    assert.equal(providersAttempted.length, 1);
+    assert.equal(providersAttempted[0]?.ok, true);
+  });
+
+  it("falls through to second attempt when first fails", () => {
+    const attempts = [
+      {
+        result: { ok: false as const, provider: "codex" as const, error: "timeout" },
+        durationMs: 120000,
+      },
+      {
+        result: { ok: true as const, provider: "claude" as const, text: goodText },
+        durationMs: 800,
+      },
+    ];
+    const { draft, notes, providersAttempted } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(draft.summary, FULL_DRAFT.summary);
+    assert.equal(notes.length, 0);
+    assert.equal(providersAttempted.length, 2);
+  });
+
+  it("returns template and fail notes when all attempts fail", () => {
+    const attempts = [
+      {
+        result: { ok: false as const, provider: "codex" as const, error: "codex_timeout" },
+        durationMs: 120000,
+      },
+      {
+        result: { ok: false as const, provider: "claude" as const, error: "claude_timeout" },
+        durationMs: 120000,
+      },
+    ];
+    const { draft, notes } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(draft.summary, FULL_DRAFT.summary);
+    assert.equal(notes.length, 2);
+    assert.ok(notes[0]?.includes("codex"));
+    assert.ok(notes[1]?.includes("claude"));
+  });
+
+  it("records partial-output note when LLM fills only some fields", () => {
+    const partial = JSON.stringify({ summary: "custom only" });
+    const attempts = [
+      {
+        result: { ok: true as const, provider: "codex" as const, text: partial },
+        durationMs: 500,
+      },
+    ];
+    const { draft, notes } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(draft.summary, "custom only");
+    assert.ok(notes.length > 0);
+    assert.ok(notes[0]?.includes("template-filled"));
+  });
+
+  it("returns template draft with no notes when attempts array is empty", () => {
+    const { draft, notes, providersAttempted } = selectDraftFromResults([], FULL_DRAFT);
+    assert.deepEqual(draft, FULL_DRAFT);
+    assert.equal(notes.length, 0);
+    assert.equal(providersAttempted.length, 0);
   });
 });
