@@ -1,7 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { extractJsonObject, resolvePlanObject, normalizeLlmDraft } from "./planner.js";
-import type { PlanDraft } from "../types/plan.js";
+import { extractJsonObject, resolvePlanObject, normalizeLlmDraft, buildLlmSystemPrompt, buildLlmUserPrompt } from "./planner.js";
+import type { PlanDraft, PlanJobPayload, RetrievedContext } from "../types/plan.js";
 
 const FULL_DRAFT: PlanDraft = {
   summary: "s",
@@ -102,5 +102,80 @@ describe("normalizeLlmDraft", () => {
     const { draft, missing } = normalizeLlmDraft(candidate, FULL_DRAFT);
     assert.equal(draft.summary, FULL_DRAFT.summary);
     assert.ok(missing.includes("summary"));
+  });
+});
+
+const TEST_PAYLOAD: PlanJobPayload = {
+  provider: "github",
+  sourceEvent: "issue_comment",
+  workItemId: "github:org/repo#42",
+  repoFullName: "org/repo",
+  repoResolution: "provided",
+  issueNumber: 42,
+  issueTitle: "Fix the thing",
+  issueBody: "It is broken",
+  issueLabels: [],
+  commentBody: "/plan",
+  commentAuthor: "dev",
+};
+
+const TEST_CTX: RetrievedContext = {
+  structuralFileMentions: [],
+  symbolMentions: [],
+  relatedIssueMentions: [],
+  candidateFiles: ["src/foo.ts"],
+  historicalHints: [],
+};
+
+describe("buildLlmSystemPrompt", () => {
+  const prompt = buildLlmSystemPrompt();
+
+  const REQUIRED_FIELDS = [
+    "summary",
+    "research",
+    "designChoices",
+    "phases",
+    "tasks",
+    "risks",
+    "testing",
+    "handoffPrompt",
+  ];
+
+  for (const field of REQUIRED_FIELDS) {
+    it(`includes field name "${field}"`, () => {
+      assert.ok(prompt.includes(field), `System prompt missing field: ${field}`);
+    });
+  }
+
+  it("instructs the LLM to return only JSON with no surrounding text", () => {
+    const lower = prompt.toLowerCase();
+    assert.ok(lower.includes("only") && lower.includes("json"), "System prompt should say return ONLY JSON");
+  });
+});
+
+describe("buildLlmUserPrompt", () => {
+  it("includes the repo name", () => {
+    const p = buildLlmUserPrompt(TEST_PAYLOAD, TEST_CTX, "full");
+    assert.ok(p.includes("org/repo"));
+  });
+
+  it("includes the issue title", () => {
+    const p = buildLlmUserPrompt(TEST_PAYLOAD, TEST_CTX, "full");
+    assert.ok(p.includes("Fix the thing"));
+  });
+
+  it("includes a JSON output reminder", () => {
+    const p = buildLlmUserPrompt(TEST_PAYLOAD, TEST_CTX, "full");
+    assert.ok(p.toLowerCase().includes("json"), "User prompt must include JSON reminder");
+  });
+
+  it("includes fewer candidate files in quick mode than full mode", () => {
+    const manyFiles: RetrievedContext = {
+      ...TEST_CTX,
+      candidateFiles: Array.from({ length: 20 }, (_, i) => `src/file${i}.ts`),
+    };
+    const quick = buildLlmUserPrompt(TEST_PAYLOAD, manyFiles, "quick");
+    const full = buildLlmUserPrompt(TEST_PAYLOAD, manyFiles, "full");
+    assert.ok(quick.length < full.length, "Quick mode prompt should be shorter than full mode");
   });
 });

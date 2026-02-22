@@ -92,15 +92,39 @@ function templatePlannerStage(payload: PlanJobPayload, ctx: RetrievedContext): P
   };
 }
 
-function buildLlmSystemPrompt(): string {
+export function buildLlmSystemPrompt(): string {
+  const schema = {
+    summary:
+      "One paragraph describing the problem and the chosen solution approach. Be specific to this issue.",
+    research:
+      "Bullet list of files, modules, symbols, and APIs to read and understand before writing any code.",
+    designChoices:
+      "Bullet list of architectural decisions and key tradeoffs for this change. Explain why each choice was made.",
+    phases:
+      "Numbered list of implementation phases. Each phase must have a clear completion criterion.",
+    tasks:
+      "Numbered list of specific code changes: exact file paths, function names, and what to add/modify/remove.",
+    risks:
+      "Bullet list of risks, edge cases, potential regressions, and concrete mitigation steps for each.",
+    testing:
+      "Bullet list of test cases covering unit, integration, and acceptance criteria for this change.",
+    handoffPrompt:
+      "Complete self-contained prompt for a coding agent. Must include: repository, exact files to change, constraints, test requirements, and the definition of done.",
+  };
+
   return [
     "You are a senior software planning agent.",
     "Generate implementation plans that are concrete, testable, and scoped to the issue.",
-    "Return only valid JSON matching the required schema fields.",
+    "",
+    "Return ONLY a valid JSON object — no markdown fences, no explanation, no surrounding text.",
+    "Do not wrap the object in any key. Output the raw object directly.",
+    "",
+    "The JSON object MUST contain exactly these 8 string fields:",
+    JSON.stringify(schema, null, 2),
   ].join("\n");
 }
 
-function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode: PlanMode): string {
+export function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode: PlanMode): string {
   const candidateFiles = ctx.candidateFiles.slice(0, mode === "quick" ? 8 : 16);
   const lines = [
     `Planning mode: ${mode}`,
@@ -129,6 +153,10 @@ function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode
     "- Include risks and rollback mitigation for risky changes.",
     "- Handoff prompt must include strong guardrails.",
   ];
+  lines.push(
+    "",
+    "IMPORTANT: Respond with ONLY the JSON object. No markdown, no explanation, no surrounding text.",
+  );
   return lines.join("\n");
 }
 
