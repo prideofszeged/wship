@@ -11,7 +11,8 @@
     "clean": "rm -rf apps/*/dist packages/*/dist",
     "typecheck": "tsc -b --pretty",
     "dev:github-app": "node apps/github-app/dist/index.js",
-    "dev:worker": "node apps/planner-worker/dist/index.js"
+    "dev:worker": "node apps/planner-worker/dist/index.js",
+    "test": "tsc -b && node --test packages/core/dist/pipeline/planner.test.js"
   },
   "devDependencies": {
     "@types/node": "^25.3.0",
