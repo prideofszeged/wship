@@ -491,7 +491,11 @@ async function generateDraftWithLlm(args: {
 }): Promise<PlannerOutput> {
   const systemPrompt = buildLlmSystemPrompt();
   const userPrompt = buildLlmUserPrompt(args.payload, args.ctx, args.mode);
-  const timeoutMs = args.llm.timeoutMs ?? LLM_DEFAULT_TIMEOUT_MS;
+  const LLM_QUICK_DEFAULT_TIMEOUT_MS = 45000;
+  const timeoutMs =
+    args.mode === "quick"
+      ? (args.llm.timeoutQuickMs ?? LLM_QUICK_DEFAULT_TIMEOUT_MS)
+      : (args.llm.timeoutMs ?? LLM_DEFAULT_TIMEOUT_MS);
 
   // Build ordered list of providers to try (primary, then optional fallback)
   const providers: Array<"codex" | "claude"> = [];

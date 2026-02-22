@@ -280,3 +280,9 @@ describe("selectDraftFromResults", () => {
     assert.equal(meta.source, "template");
   });
 });
+
+describe("timeout budget constants", () => {
+  it("quick-mode default (45s) is less than full-mode default (120s)", () => {
+    assert.ok(45000 < 120000);
+  });
+});

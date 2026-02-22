@@ -116,6 +116,7 @@ export interface PlannerLlmConfig {
   fallback?: Exclude<PlannerLlmProvider, "none">;  // secondary provider tried before template fallback
   model?: string;
   timeoutMs?: number;
+  timeoutQuickMs?: number;   // timeout for quick-mode jobs (default: 45000)
   codexBin?: string;
   claudeBin?: string;
 }
