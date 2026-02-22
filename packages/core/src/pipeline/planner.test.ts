@@ -190,11 +190,11 @@ describe("selectDraftFromResults", () => {
         durationMs: 100,
       },
     ];
-    const { draft, notes, providersAttempted } = selectDraftFromResults(attempts, FULL_DRAFT);
+    const { draft, notes, meta } = selectDraftFromResults(attempts, FULL_DRAFT);
     assert.equal(notes.length, 0);
     assert.equal(draft.summary, FULL_DRAFT.summary);
-    assert.equal(providersAttempted.length, 1);
-    assert.equal(providersAttempted[0]?.ok, true);
+    assert.equal(meta.providersAttempted.length, 1);
+    assert.equal(meta.providersAttempted[0]?.ok, true);
   });
 
   it("falls through to second attempt when first fails", () => {
@@ -208,10 +208,10 @@ describe("selectDraftFromResults", () => {
         durationMs: 800,
       },
     ];
-    const { draft, notes, providersAttempted } = selectDraftFromResults(attempts, FULL_DRAFT);
+    const { draft, notes, meta } = selectDraftFromResults(attempts, FULL_DRAFT);
     assert.equal(draft.summary, FULL_DRAFT.summary);
     assert.equal(notes.length, 0);
-    assert.equal(providersAttempted.length, 2);
+    assert.equal(meta.providersAttempted.length, 2);
   });
 
   it("returns template and fail notes when all attempts fail", () => {
@@ -247,9 +247,36 @@ describe("selectDraftFromResults", () => {
   });
 
   it("returns template draft with no notes when attempts array is empty", () => {
-    const { draft, notes, providersAttempted } = selectDraftFromResults([], FULL_DRAFT);
+    const { draft, notes, meta } = selectDraftFromResults([], FULL_DRAFT);
     assert.deepEqual(draft, FULL_DRAFT);
     assert.equal(notes.length, 0);
-    assert.equal(providersAttempted.length, 0);
+    assert.equal(meta.providersAttempted.length, 0);
+  });
+
+  it("sets source to 'llm' when all fields are present", () => {
+    const attempts = [
+      { result: { ok: true as const, provider: "codex" as const, text: goodText }, durationMs: 100 },
+    ];
+    const { meta } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(meta.source, "llm");
+    assert.equal(meta.templateFilledFields.length, 0);
+  });
+
+  it("sets source to 'llm-partial' when some fields are missing", () => {
+    const partial = JSON.stringify({ summary: "custom only" });
+    const attempts = [
+      { result: { ok: true as const, provider: "codex" as const, text: partial }, durationMs: 100 },
+    ];
+    const { meta } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(meta.source, "llm-partial");
+    assert.ok(meta.templateFilledFields.length > 0);
+  });
+
+  it("sets source to 'template' when all attempts fail", () => {
+    const attempts = [
+      { result: { ok: false as const, provider: "codex" as const, error: "timeout" }, durationMs: 120000 },
+    ];
+    const { meta } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.equal(meta.source, "template");
   });
 });

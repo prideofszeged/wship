@@ -79,12 +79,26 @@ export interface HandoffValidation {
   reasons: string[];
 }
 
+export interface PlannerProviderAttempt {
+  provider: "codex" | "claude";
+  ok: boolean;
+  error?: string;
+  durationMs: number;
+}
+
+export interface PlannerRunMetadata {
+  source: "llm" | "llm-partial" | "template";
+  providersAttempted: PlannerProviderAttempt[];
+  templateFilledFields: string[];
+}
+
 export interface PlanPipelineResult {
   status: "ready" | "needs_revision";
   markdown: string;
   score: ScoreBreakdown;
   handoff: HandoffValidation;
   criticNotes: string[];
+  plannerMeta: PlannerRunMetadata;
   timingsMs: {
     retrieval: number;
     planner: number;

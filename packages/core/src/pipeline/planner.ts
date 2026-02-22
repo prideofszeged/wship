@@ -5,6 +5,7 @@ import type {
   PlanJobPayload,
   PlanMode,
   PlannerLlmConfig,
+  PlannerRunMetadata,
   RetrievedContext,
 } from "../types/plan.js";
 
@@ -13,6 +14,7 @@ const execFileAsync = promisify(execFile);
 interface PlannerOutput {
   draft: PlanDraft;
   notes: string[];
+  meta: PlannerRunMetadata;
 }
 
 interface LlmCallResult {
@@ -433,8 +435,8 @@ async function callClaudeLlm(args: {
 export function selectDraftFromResults(
   attempts: ReadonlyArray<{ result: LlmCallResult; durationMs: number }>,
   fallback: PlanDraft,
-): { draft: PlanDraft; notes: string[]; providersAttempted: Array<{ provider: "codex" | "claude"; ok: boolean; error?: string; durationMs: number }> } {
-  const providersAttempted = attempts.map((a) => ({
+): { draft: PlanDraft; notes: string[]; meta: PlannerRunMetadata } {
+  const providersAttempted: PlannerRunMetadata["providersAttempted"] = attempts.map((a) => ({
     provider: a.result.provider,
     ok: a.result.ok,
     ...(a.result.error ? { error: a.result.error } : {}),
@@ -451,14 +453,18 @@ export function selectDraftFromResults(
     }
     const resolved = resolvePlanObject(parsed);
     const normalized = normalizeLlmDraft(resolved, fallback);
-    const note =
-      normalized.missing.length > 0
-        ? `LLM planner partial output (${attempt.result.provider}); template-filled: ${normalized.missing.join(", ")}`
-        : undefined;
+    const isPartial = normalized.missing.length > 0;
+    const note = isPartial
+      ? `LLM planner partial output (${attempt.result.provider}); template-filled: ${normalized.missing.join(", ")}`
+      : undefined;
     return {
       draft: normalized.draft,
       notes: note !== undefined ? [note] : [],
-      providersAttempted,
+      meta: {
+        source: isPartial ? "llm-partial" : "llm",
+        providersAttempted,
+        templateFilledFields: normalized.missing,
+      },
     };
   }
 
@@ -468,7 +474,11 @@ export function selectDraftFromResults(
   return {
     draft: fallback,
     notes: failNotes,
-    providersAttempted,
+    meta: {
+      source: "template",
+      providersAttempted,
+      templateFilledFields: [],
+    },
   };
 }
 
@@ -521,8 +531,8 @@ async function generateDraftWithLlm(args: {
     }
   }
 
-  const { draft, notes } = selectDraftFromResults(attempts, args.fallback);
-  return { draft, notes };
+  const { draft, notes, meta } = selectDraftFromResults(attempts, args.fallback);
+  return { draft, notes, meta };
 }
 
 export async function plannerStage(args: {
@@ -537,6 +547,11 @@ export async function plannerStage(args: {
     return {
       draft: fallback,
       notes: [],
+      meta: {
+        source: "template" as const,
+        providersAttempted: [],
+        templateFilledFields: [],
+      },
     };
   }
 
