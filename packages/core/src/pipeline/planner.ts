@@ -468,9 +468,12 @@ export function selectDraftFromResults(
     };
   }
 
-  const failNotes = attempts.map(
-    (a) => `LLM planner fallback (${a.result.provider}): ${a.result.error ?? "unknown_error"}`,
-  );
+  const failNotes = attempts.map((a) => {
+    if (a.result.ok) {
+      return `LLM planner fallback (${a.result.provider}): unparseable_output`;
+    }
+    return `LLM planner fallback (${a.result.provider}): ${a.result.error ?? "unknown_error"}`;
+  });
   return {
     draft: fallback,
     notes: failNotes,
@@ -509,6 +512,7 @@ async function generateDraftWithLlm(args: {
   const attempts: Array<{ result: LlmCallResult; durationMs: number }> = [];
 
   for (const provider of providers) {
+    const isPrimary = provider === args.llm.provider;
     const callStart = Date.now();
     const callResult =
       provider === "codex"
@@ -516,14 +520,14 @@ async function generateDraftWithLlm(args: {
             systemPrompt,
             userPrompt,
             timeoutMs,
-            ...(args.llm.model ? { model: args.llm.model } : {}),
+            ...(isPrimary && args.llm.model ? { model: args.llm.model } : {}),
             ...(args.llm.codexBin ? { codexBin: args.llm.codexBin } : {}),
           })
         : await callClaudeLlm({
             systemPrompt,
             userPrompt,
             timeoutMs,
-            ...(args.llm.model ? { model: args.llm.model } : {}),
+            ...(isPrimary && args.llm.model ? { model: args.llm.model } : {}),
             ...(args.llm.claudeBin ? { claudeBin: args.llm.claudeBin } : {}),
           });
     const durationMs = Date.now() - callStart;

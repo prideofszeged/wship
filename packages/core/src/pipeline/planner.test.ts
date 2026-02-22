@@ -232,6 +232,18 @@ describe("selectDraftFromResults", () => {
     assert.ok(notes[1]?.includes("claude"));
   });
 
+  it("labels ok-but-unparseable attempt as unparseable_output in note", () => {
+    const attempts = [
+      {
+        result: { ok: true as const, provider: "codex" as const, text: "not json at all" },
+        durationMs: 100,
+      },
+    ];
+    const { notes, meta } = selectDraftFromResults(attempts, FULL_DRAFT);
+    assert.ok(notes[0]?.includes("unparseable_output"));
+    assert.equal(meta.source, "template");
+  });
+
   it("records partial-output note when LLM fills only some fields", () => {
     const partial = JSON.stringify({ summary: "custom only" });
     const attempts = [

@@ -986,7 +986,7 @@ git commit -m "feat: add mode-aware timeout budgets (quick=45s, full=120s)"
 ### Step 1: Update `README.md` planner config section
 
 Find the block starting with `Planner LLM configuration (worker):` and add:
-```
+```text
 - `PLANNER_LLM_FALLBACK=codex|claude` (optional; secondary provider tried if primary fails)
 - `PLANNER_LLM_TIMEOUT_QUICK_MS=45000` (optional; timeout for quick-mode jobs, default 45s)
 ```
@@ -994,7 +994,7 @@ Find the block starting with `Planner LLM configuration (worker):` and add:
 ### Step 2: Update `CLAUDE.md` environment variables section
 
 Add to the environment variables list:
-```
+```text
 - `PLANNER_LLM_FALLBACK=codex|claude` — Secondary provider tried when primary fails before template fallback
 - `PLANNER_LLM_TIMEOUT_QUICK_MS` — Timeout for quick-mode jobs (default: 45000ms)
 ```

@@ -21,7 +21,7 @@ npm run dev:github-app   # run webhook receiver directly (requires build first)
 npm run dev:worker       # run planner worker directly (requires build first)
 ```
 
-No test framework or linter is configured yet.
+Tests use the built-in `node:test` runner. Run with `npm test` (compiles then runs `packages/core/dist/pipeline/planner.test.js`).
 
 ## Architecture
 
