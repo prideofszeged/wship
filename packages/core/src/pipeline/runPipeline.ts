@@ -53,6 +53,7 @@ export async function runPlanPipeline(payload: PlanJobPayload, options?: PlanPip
     score,
     handoff,
     criticNotes,
+    plannerMeta: planner.meta,
     timingsMs: {
       retrieval: retrievalMs,
       planner: plannerMs,

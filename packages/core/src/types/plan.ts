@@ -79,12 +79,26 @@ export interface HandoffValidation {
   reasons: string[];
 }
 
+export interface PlannerProviderAttempt {
+  provider: "codex" | "claude";
+  ok: boolean;
+  error?: string;
+  durationMs: number;
+}
+
+export interface PlannerRunMetadata {
+  source: "llm" | "llm-partial" | "template";
+  providersAttempted: PlannerProviderAttempt[];
+  templateFilledFields: string[];
+}
+
 export interface PlanPipelineResult {
   status: "ready" | "needs_revision";
   markdown: string;
   score: ScoreBreakdown;
   handoff: HandoffValidation;
   criticNotes: string[];
+  plannerMeta: PlannerRunMetadata;
   timingsMs: {
     retrieval: number;
     planner: number;
@@ -99,8 +113,10 @@ export type PlannerLlmProvider = "none" | "codex" | "claude";
 
 export interface PlannerLlmConfig {
   provider: PlannerLlmProvider;
+  fallback?: Exclude<PlannerLlmProvider, "none">;  // secondary provider tried before template fallback
   model?: string;
   timeoutMs?: number;
+  timeoutQuickMs?: number;   // timeout for quick-mode jobs (default: 45000)
   codexBin?: string;
   claudeBin?: string;
 }

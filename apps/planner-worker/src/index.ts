@@ -38,7 +38,9 @@ for (;;) {
       llm: {
         provider: config.plannerLlmProvider,
         ...(config.plannerLlmModel ? { model: config.plannerLlmModel } : {}),
+        ...(config.plannerLlmFallback ? { fallback: config.plannerLlmFallback } : {}),
         timeoutMs: config.plannerLlmTimeoutMs,
+        timeoutQuickMs: config.plannerLlmTimeoutQuickMs,
         ...(config.plannerCodexBin ? { codexBin: config.plannerCodexBin } : {}),
         ...(config.plannerClaudeBin ? { claudeBin: config.plannerClaudeBin } : {}),
       },

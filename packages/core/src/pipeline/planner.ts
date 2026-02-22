@@ -5,6 +5,7 @@ import type {
   PlanJobPayload,
   PlanMode,
   PlannerLlmConfig,
+  PlannerRunMetadata,
   RetrievedContext,
 } from "../types/plan.js";
 
@@ -13,6 +14,7 @@ const execFileAsync = promisify(execFile);
 interface PlannerOutput {
   draft: PlanDraft;
   notes: string[];
+  meta: PlannerRunMetadata;
 }
 
 interface LlmCallResult {
@@ -92,15 +94,39 @@ function templatePlannerStage(payload: PlanJobPayload, ctx: RetrievedContext): P
   };
 }
 
-function buildLlmSystemPrompt(): string {
+export function buildLlmSystemPrompt(): string {
+  const schema = {
+    summary:
+      "One paragraph describing the problem and the chosen solution approach. Be specific to this issue.",
+    research:
+      "Bullet list of files, modules, symbols, and APIs to read and understand before writing any code.",
+    designChoices:
+      "Bullet list of architectural decisions and key tradeoffs for this change. Explain why each choice was made.",
+    phases:
+      "Numbered list of implementation phases. Each phase must have a clear completion criterion.",
+    tasks:
+      "Numbered list of specific code changes: exact file paths, function names, and what to add/modify/remove.",
+    risks:
+      "Bullet list of risks, edge cases, potential regressions, and concrete mitigation steps for each.",
+    testing:
+      "Bullet list of test cases covering unit, integration, and acceptance criteria for this change.",
+    handoffPrompt:
+      "Complete self-contained prompt for a coding agent. Must include: repository, exact files to change, constraints, test requirements, and the definition of done.",
+  };
+
   return [
     "You are a senior software planning agent.",
     "Generate implementation plans that are concrete, testable, and scoped to the issue.",
-    "Return only valid JSON matching the required schema fields.",
+    "",
+    "Return ONLY a valid JSON object — no markdown fences, no explanation, no surrounding text.",
+    "Do not wrap the object in any key. Output the raw object directly.",
+    "",
+    "The JSON object MUST contain exactly these 8 string fields:",
+    JSON.stringify(schema, null, 2),
   ].join("\n");
 }
 
-function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode: PlanMode): string {
+export function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode: PlanMode): string {
   const candidateFiles = ctx.candidateFiles.slice(0, mode === "quick" ? 8 : 16);
   const lines = [
     `Planning mode: ${mode}`,
@@ -129,10 +155,14 @@ function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContext, mode
     "- Include risks and rollback mitigation for risky changes.",
     "- Handoff prompt must include strong guardrails.",
   ];
+  lines.push(
+    "",
+    "IMPORTANT: Respond with ONLY the JSON object. No markdown, no explanation, no surrounding text.",
+  );
   return lines.join("\n");
 }
 
-function extractJsonObject(text: string): Record<string, unknown> | null {
+export function extractJsonObject(text: string): Record<string, unknown> | null {
   const trimmed = text.trim();
   if (!trimmed) {
     return null;
@@ -162,7 +192,7 @@ function countDraftFields(candidate: Record<string, unknown>): number {
   }, 0);
 }
 
-function resolvePlanObject(candidate: Record<string, unknown>): Record<string, unknown> {
+export function resolvePlanObject(candidate: Record<string, unknown>): Record<string, unknown> {
   if (countDraftFields(candidate) > 0) {
     return candidate;
   }
@@ -193,7 +223,7 @@ function resolvePlanObject(candidate: Record<string, unknown>): Record<string, u
   return candidate;
 }
 
-function normalizeLlmDraft(candidate: Record<string, unknown>, fallback: PlanDraft): { draft: PlanDraft; missing: string[] } {
+export function normalizeLlmDraft(candidate: Record<string, unknown>, fallback: PlanDraft): { draft: PlanDraft; missing: string[] } {
   const out: PlanDraft = { ...fallback };
   const missing: string[] = [];
 
@@ -402,6 +432,59 @@ async function callClaudeLlm(args: {
   }
 }
 
+export function selectDraftFromResults(
+  attempts: ReadonlyArray<{ result: LlmCallResult; durationMs: number }>,
+  fallback: PlanDraft,
+): { draft: PlanDraft; notes: string[]; meta: PlannerRunMetadata } {
+  const providersAttempted: PlannerRunMetadata["providersAttempted"] = attempts.map((a) => ({
+    provider: a.result.provider,
+    ok: a.result.ok,
+    ...(a.result.error ? { error: a.result.error } : {}),
+    durationMs: a.durationMs,
+  }));
+
+  for (const attempt of attempts) {
+    if (!attempt.result.ok || !attempt.result.text) {
+      continue;
+    }
+    const parsed = extractJsonObject(attempt.result.text);
+    if (!parsed) {
+      continue;
+    }
+    const resolved = resolvePlanObject(parsed);
+    const normalized = normalizeLlmDraft(resolved, fallback);
+    const isPartial = normalized.missing.length > 0;
+    const note = isPartial
+      ? `LLM planner partial output (${attempt.result.provider}); template-filled: ${normalized.missing.join(", ")}`
+      : undefined;
+    return {
+      draft: normalized.draft,
+      notes: note !== undefined ? [note] : [],
+      meta: {
+        source: isPartial ? "llm-partial" : "llm",
+        providersAttempted,
+        templateFilledFields: normalized.missing,
+      },
+    };
+  }
+
+  const failNotes = attempts.map((a) => {
+    if (a.result.ok) {
+      return `LLM planner fallback (${a.result.provider}): unparseable_output`;
+    }
+    return `LLM planner fallback (${a.result.provider}): ${a.result.error ?? "unknown_error"}`;
+  });
+  return {
+    draft: fallback,
+    notes: failNotes,
+    meta: {
+      source: "template",
+      providersAttempted,
+      templateFilledFields: [],
+    },
+  };
+}
+
 async function generateDraftWithLlm(args: {
   payload: PlanJobPayload;
   ctx: RetrievedContext;
@@ -411,52 +494,53 @@ async function generateDraftWithLlm(args: {
 }): Promise<PlannerOutput> {
   const systemPrompt = buildLlmSystemPrompt();
   const userPrompt = buildLlmUserPrompt(args.payload, args.ctx, args.mode);
-  const timeoutMs = args.llm.timeoutMs ?? LLM_DEFAULT_TIMEOUT_MS;
+  const LLM_QUICK_DEFAULT_TIMEOUT_MS = 45000;
+  const timeoutMs =
+    args.mode === "quick"
+      ? (args.llm.timeoutQuickMs ?? LLM_QUICK_DEFAULT_TIMEOUT_MS)
+      : (args.llm.timeoutMs ?? LLM_DEFAULT_TIMEOUT_MS);
 
-  const callResult =
-    args.llm.provider === "codex"
-      ? await callCodexLlm({
-          systemPrompt,
-          userPrompt,
-          timeoutMs,
-          ...(args.llm.model ? { model: args.llm.model } : {}),
-          ...(args.llm.codexBin ? { codexBin: args.llm.codexBin } : {}),
-        })
-      : await callClaudeLlm({
-          systemPrompt,
-          userPrompt,
-          timeoutMs,
-          ...(args.llm.model ? { model: args.llm.model } : {}),
-          ...(args.llm.claudeBin ? { claudeBin: args.llm.claudeBin } : {}),
-        });
-
-  if (!callResult.ok || !callResult.text) {
-    return {
-      draft: args.fallback,
-      notes: [`LLM planner fallback: ${callResult.error ?? "unknown_error"}`],
-    };
+  // Build ordered list of providers to try (primary, then optional fallback)
+  const providers: Array<"codex" | "claude"> = [];
+  if (args.llm.provider === "codex" || args.llm.provider === "claude") {
+    providers.push(args.llm.provider);
+  }
+  if (args.llm.fallback && args.llm.fallback !== args.llm.provider) {
+    providers.push(args.llm.fallback);
   }
 
-  const parsed = extractJsonObject(callResult.text);
-  if (!parsed) {
-    return {
-      draft: args.fallback,
-      notes: [`LLM planner fallback: invalid_json_output (${callResult.provider})`],
-    };
+  const attempts: Array<{ result: LlmCallResult; durationMs: number }> = [];
+
+  for (const provider of providers) {
+    const isPrimary = provider === args.llm.provider;
+    const callStart = Date.now();
+    const callResult =
+      provider === "codex"
+        ? await callCodexLlm({
+            systemPrompt,
+            userPrompt,
+            timeoutMs,
+            ...(isPrimary && args.llm.model ? { model: args.llm.model } : {}),
+            ...(args.llm.codexBin ? { codexBin: args.llm.codexBin } : {}),
+          })
+        : await callClaudeLlm({
+            systemPrompt,
+            userPrompt,
+            timeoutMs,
+            ...(isPrimary && args.llm.model ? { model: args.llm.model } : {}),
+            ...(args.llm.claudeBin ? { claudeBin: args.llm.claudeBin } : {}),
+          });
+    const durationMs = Date.now() - callStart;
+    attempts.push({ result: callResult, durationMs });
+
+    // Short-circuit: if this attempt succeeded and produced parseable JSON, stop trying
+    if (callResult.ok && callResult.text && extractJsonObject(callResult.text)) {
+      break;
+    }
   }
 
-  const resolved = resolvePlanObject(parsed);
-  const normalized = normalizeLlmDraft(resolved, args.fallback);
-  if (normalized.missing.length > 0) {
-    return {
-      draft: normalized.draft,
-      notes: [
-        `LLM planner partial output (${callResult.provider}); template-filled fields: ${normalized.missing.join(", ")}`,
-      ],
-    };
-  }
-
-  return { draft: normalized.draft, notes: [] };
+  const { draft, notes, meta } = selectDraftFromResults(attempts, args.fallback);
+  return { draft, notes, meta };
 }
 
 export async function plannerStage(args: {
@@ -471,6 +555,11 @@ export async function plannerStage(args: {
     return {
       draft: fallback,
       notes: [],
+      meta: {
+        source: "template" as const,
+        providersAttempted: [],
+        templateFilledFields: [],
+      },
     };
   }
 

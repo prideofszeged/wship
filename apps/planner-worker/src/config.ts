@@ -5,7 +5,9 @@ export interface WorkerConfig {
   pollMs: number;
   plannerLlmProvider: "none" | "codex" | "claude";
   plannerLlmModel?: string;
+  plannerLlmFallback?: "codex" | "claude";
   plannerLlmTimeoutMs: number;
+  plannerLlmTimeoutQuickMs: number;
   plannerCodexBin?: string;
   plannerClaudeBin?: string;
   githubPostbackMode: "api" | "gh" | "auto";
@@ -34,7 +36,13 @@ function parseGitHubPostbackMode(value: string | undefined): "api" | "gh" | "aut
 export function loadConfig(): WorkerConfig {
   const plannerLlmProvider = parsePlannerProvider(process.env.PLANNER_LLM_PROVIDER);
   const plannerLlmModel = process.env.PLANNER_LLM_MODEL;
+  const plannerLlmFallbackRaw = (process.env.PLANNER_LLM_FALLBACK ?? "").trim().toLowerCase();
+  const plannerLlmFallback: "codex" | "claude" | undefined =
+    plannerLlmFallbackRaw === "codex" || plannerLlmFallbackRaw === "claude"
+      ? plannerLlmFallbackRaw
+      : undefined;
   const plannerLlmTimeoutMs = Number(process.env.PLANNER_LLM_TIMEOUT_MS ?? 120000);
+  const plannerLlmTimeoutQuickMs = Number(process.env.PLANNER_LLM_TIMEOUT_QUICK_MS ?? 45000);
   const plannerCodexBin = process.env.PLANNER_CODEX_BIN;
   const plannerClaudeBin = process.env.PLANNER_CLAUDE_BIN;
   const githubPostbackMode = parseGitHubPostbackMode(process.env.GITHUB_POSTBACK_MODE);
@@ -48,10 +56,12 @@ export function loadConfig(): WorkerConfig {
     pollMs: Number(process.env.WORKER_POLL_MS ?? 1500),
     plannerLlmProvider,
     plannerLlmTimeoutMs: Number.isFinite(plannerLlmTimeoutMs) && plannerLlmTimeoutMs > 0 ? plannerLlmTimeoutMs : 120000,
+    plannerLlmTimeoutQuickMs: Number.isFinite(plannerLlmTimeoutQuickMs) && plannerLlmTimeoutQuickMs > 0 ? plannerLlmTimeoutQuickMs : 45000,
     ...(plannerCodexBin ? { plannerCodexBin } : {}),
     ...(plannerClaudeBin ? { plannerClaudeBin } : {}),
     githubPostbackMode,
     ...(plannerLlmModel ? { plannerLlmModel } : {}),
+    ...(plannerLlmFallback ? { plannerLlmFallback } : {}),
     ...(githubApiToken ? { githubApiToken } : {}),
     ...(jiraBaseUrl ? { jiraBaseUrl } : {}),
     ...(jiraEmail ? { jiraEmail } : {}),

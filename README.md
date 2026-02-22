@@ -76,12 +76,15 @@ Optional issue enrichment for Slack requests:
 Planner LLM configuration (worker):
 - `PLANNER_LLM_PROVIDER=none|codex|claude` (default `none`)
 - `PLANNER_LLM_MODEL=<model-name>` (optional; provider defaults used if unset)
-- `PLANNER_LLM_TIMEOUT_MS=120000` (optional)
+- `PLANNER_LLM_FALLBACK=codex|claude` (optional; secondary provider tried if primary fails before template fallback)
+- `PLANNER_LLM_TIMEOUT_MS=120000` (optional; timeout for full-mode jobs)
+- `PLANNER_LLM_TIMEOUT_QUICK_MS=45000` (optional; timeout for quick-mode jobs)
 - `PLANNER_CODEX_BIN=<absolute-path-to-codex>` (optional PATH override)
 - `PLANNER_CLAUDE_BIN=<absolute-path-to-claude>` (optional PATH override)
 - `codex` provider uses local `codex exec` CLI with JSON schema output.
 - `claude` provider uses local `claude -p` CLI with JSON schema output.
 - If LLM is misconfigured or returns invalid output, planner falls back to template mode and records a critic note.
+- Completed jobs include `plannerMeta` (source, providers attempted, template-filled fields) for observability.
 
 Optional provider postback from worker:
 - GitHub issue comments:
