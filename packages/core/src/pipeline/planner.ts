@@ -1,8 +1,4 @@
-import { execFile } from "node:child_process";
-import { randomUUID } from "node:crypto";
-import { readFile, rm, writeFile } from "node:fs/promises";
-import os from "node:os";
-import path from "node:path";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 import type {
   PlanDraft,
@@ -38,22 +34,6 @@ const DRAFT_KEYS: Array<keyof PlanDraft> = [
   "testing",
   "handoffPrompt",
 ];
-
-const OUTPUT_SCHEMA = {
-  type: "object",
-  additionalProperties: false,
-  properties: {
-    summary: { type: "string" },
-    research: { type: "string" },
-    designChoices: { type: "string" },
-    phases: { type: "string" },
-    tasks: { type: "string" },
-    risks: { type: "string" },
-    testing: { type: "string" },
-    handoffPrompt: { type: "string" },
-  },
-  required: DRAFT_KEYS,
-} as const;
 
 function templatePlannerStage(payload: PlanJobPayload, ctx: RetrievedContext): PlanDraft {
   const targetFiles = ctx.candidateFiles.slice(0, 10);
@@ -188,6 +168,7 @@ function resolvePlanObject(candidate: Record<string, unknown>): Record<string, u
   }
 
   const nestedCandidates: Array<unknown> = [
+    candidate["structured_output"],
     candidate["result"],
     candidate["output"],
     candidate["data"],
@@ -265,12 +246,9 @@ async function callCodexLlm(args: {
   timeoutMs: number;
   codexBin?: string;
 }): Promise<LlmCallResult> {
-  const schemaPath = path.join(os.tmpdir(), `issue-planner-schema-${randomUUID()}.json`);
-  const outputPath = path.join(os.tmpdir(), `issue-planner-codex-out-${randomUUID()}.txt`);
   const prompt = `${args.systemPrompt}\n\n${args.userPrompt}`;
 
   try {
-    await writeFile(schemaPath, JSON.stringify(OUTPUT_SCHEMA), "utf8");
     const commandArgs = [
       "exec",
       "--skip-git-repo-check",
@@ -278,10 +256,6 @@ async function callCodexLlm(args: {
       "read-only",
       "--color",
       "never",
-      "--output-schema",
-      schemaPath,
-      "--output-last-message",
-      outputPath,
       "--",
       prompt,
     ];
@@ -295,15 +269,12 @@ async function callCodexLlm(args: {
       timeout: args.timeoutMs,
     });
 
-    let text = "";
-    try {
-      text = (await readFile(outputPath, "utf8")).trim();
-    } catch {
-      text = "";
-    }
-
-    if (!text) {
-      text = result.stdout.trim();
+    let text = result.stdout.trim();
+    if (!text && result.stderr) {
+      const parsed = extractJsonObject(result.stderr);
+      if (parsed) {
+        text = JSON.stringify(parsed);
+      }
     }
 
     if (!text) {
@@ -328,8 +299,6 @@ async function callCodexLlm(args: {
       ...(args.model ? { model: args.model } : {}),
       error: formatCliError(error, "codex_exec_failed"),
     };
-  } finally {
-    await Promise.all([rm(schemaPath, { force: true }), rm(outputPath, { force: true })]);
   }
 }
 
@@ -346,21 +315,67 @@ async function callClaudeLlm(args: {
     commandArgs.push("--model", args.model);
   }
   commandArgs.push(
+    "--permission-mode",
+    "bypassPermissions",
     "-p",
     "--output-format",
-    "json",
-    "--json-schema",
-    JSON.stringify(OUTPUT_SCHEMA),
+    "text",
     "--tools",
     "",
-    prompt,
   );
 
   try {
-    const result = await execFileAsync(args.claudeBin ?? "claude", commandArgs, {
-      maxBuffer: 1024 * 1024 * 6,
-      timeout: args.timeoutMs,
+    const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      const child = spawn(args.claudeBin ?? "claude", commandArgs, {
+        stdio: ["pipe", "pipe", "pipe"],
+      });
+
+      let stdout = "";
+      let stderr = "";
+      let timedOut = false;
+
+      const timer = setTimeout(() => {
+        timedOut = true;
+        child.kill("SIGTERM");
+      }, args.timeoutMs);
+
+      child.stdout.setEncoding("utf8");
+      child.stdout.on("data", (chunk: string) => {
+        stdout += chunk;
+      });
+
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk: string) => {
+        stderr += chunk;
+      });
+
+      child.on("error", (error) => {
+        clearTimeout(timer);
+        reject(error);
+      });
+
+      child.on("close", (code, signal) => {
+        clearTimeout(timer);
+        if (code === 0) {
+          resolve({ stdout, stderr });
+          return;
+        }
+
+        const err = new Error(`claude_exit_${code ?? "null"}`);
+        if (code !== null) {
+          (err as Error & { code?: string | number }).code = code;
+        }
+        if (signal) {
+          (err as Error & { signal?: string }).signal = signal;
+        }
+        (err as Error & { stderr?: string }).stderr = stderr;
+        (err as Error & { killed?: boolean }).killed = timedOut;
+        reject(err);
+      });
+
+      child.stdin.end(prompt);
     });
+
     const text = result.stdout.trim();
     if (!text) {
       return {
