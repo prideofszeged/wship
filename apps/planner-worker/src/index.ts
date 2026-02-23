@@ -148,6 +148,7 @@ for (;;) {
       handoff: result.handoff,
       criticNotes: result.criticNotes,
       markdown: result.markdown,
+      plannerMeta: result.plannerMeta,
       timingsMs: result.timingsMs,
       runtimeMs: Date.now() - startedAt,
       ...(slackCallback ? { slackCallback } : {}),

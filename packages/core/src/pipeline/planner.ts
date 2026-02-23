@@ -356,8 +356,11 @@ async function callClaudeLlm(args: {
 
   try {
     const result = await new Promise<{ stdout: string; stderr: string }>((resolve, reject) => {
+      const spawnEnv = { ...process.env };
+      delete spawnEnv["CLAUDECODE"];
       const child = spawn(args.claudeBin ?? "claude", commandArgs, {
         stdio: ["pipe", "pipe", "pipe"],
+        env: spawnEnv,
       });
 
       let stdout = "";
