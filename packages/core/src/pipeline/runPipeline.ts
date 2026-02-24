@@ -1,6 +1,7 @@
 import type { PlanJobPayload, PlanPipelineOptions, PlanPipelineResult } from "../types/plan.js";
 import { buildRetrievedContext } from "../retrieval/contextBuilder.js";
 import { fetchJiraIssue } from "../retrieval/jiraEnricher.js";
+import { fetchGitHubRepoContext } from "../retrieval/githubEnricher.js";
 import { plannerStage } from "./planner.js";
 import { criticStage } from "./critic.js";
 import { scorePlan } from "./scorer.js";
@@ -26,7 +27,8 @@ export async function runPlanPipeline(payloadArg: PlanJobPayload, options?: Plan
       };
     }
   }
-  const retrieved = buildRetrievedContext(payload);
+  const github = await fetchGitHubRepoContext(payload.repoFullName, options?.github?.token);
+  const retrieved = buildRetrievedContext(payload, github);
   const retrievalMs = Date.now() - retrievalStart;
 
   const plannerStart = Date.now();

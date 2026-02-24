@@ -132,6 +132,7 @@ export function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContex
     `Planning mode: ${mode}`,
     `Provider: ${payload.provider}`,
     `Repo: ${payload.repoFullName}`,
+    ...(ctx.repoLanguage ? [`Repo language: ${ctx.repoLanguage}`] : []),
     `Work item: ${payload.workItemId}`,
     `Issue number: ${payload.issueNumber}`,
     `Issue title: ${payload.issueTitle}`,
@@ -142,19 +143,31 @@ export function buildLlmUserPrompt(payload: PlanJobPayload, ctx: RetrievedContex
     "Command/comment body:",
     payload.commentBody || "(empty)",
     "",
-    "Candidate files:",
+    "Actual repo files (use ONLY these paths — do not invent filenames):",
     ...(candidateFiles.length > 0 ? candidateFiles.map((f) => `- ${f}`) : ["- none"]),
     "",
     `Symbol mentions: ${ctx.symbolMentions.length > 0 ? ctx.symbolMentions.join(", ") : "none"}`,
     `Historical hints: ${ctx.historicalHints.length > 0 ? ctx.historicalHints.join(" ") : "none"}`,
+  ];
+
+  if (ctx.dependenciesSnippet) {
+    lines.push("", "Dependencies:", ctx.dependenciesSnippet);
+  }
+
+  if (ctx.readmeSnippet) {
+    lines.push("", "README (first 2000 chars):", ctx.readmeSnippet);
+  }
+
+  lines.push(
     "",
     "Requirements:",
     "- Be specific to this issue and repo context.",
+    "- Reference only real files listed above — never invent paths.",
     "- Include concrete files/functions when possible.",
     "- Provide phased execution steps and explicit tests.",
     "- Include risks and rollback mitigation for risky changes.",
     "- Handoff prompt must include strong guardrails.",
-  ];
+  );
   lines.push(
     "",
     "IMPORTANT: Respond with ONLY the JSON object. No markdown, no explanation, no surrounding text.",

@@ -48,6 +48,9 @@ export interface RetrievedContext {
   relatedIssueMentions: string[];
   candidateFiles: string[];
   historicalHints: string[];
+  repoLanguage?: string;
+  readmeSnippet?: string;
+  dependenciesSnippet?: string;
 }
 
 export interface PlanDraft {
@@ -127,8 +130,13 @@ export interface JiraConfig {
   apiToken: string;
 }
 
+export interface GitHubEnrichConfig {
+  token?: string;
+}
+
 export interface PlanPipelineOptions {
   mode?: PlanMode;
   llm?: PlannerLlmConfig;
   jira?: JiraConfig;
+  github?: GitHubEnrichConfig;
 }

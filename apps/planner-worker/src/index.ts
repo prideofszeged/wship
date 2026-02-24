@@ -47,6 +47,7 @@ for (;;) {
       ...(config.jiraBaseUrl && config.jiraEmail && config.jiraApiToken
         ? { jira: { baseUrl: config.jiraBaseUrl, email: config.jiraEmail, apiToken: config.jiraApiToken } }
         : {}),
+      github: { ...(config.githubApiToken ? { token: config.githubApiToken } : {}) },
     });
     let slackCallback:
       | { attempted: true; ok: true; status: number; postedAt: string }
