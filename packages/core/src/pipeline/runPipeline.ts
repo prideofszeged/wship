@@ -1,5 +1,6 @@
 import type { PlanJobPayload, PlanPipelineOptions, PlanPipelineResult } from "../types/plan.js";
 import { buildRetrievedContext } from "../retrieval/contextBuilder.js";
+import { fetchJiraIssue } from "../retrieval/jiraEnricher.js";
 import { plannerStage } from "./planner.js";
 import { criticStage } from "./critic.js";
 import { scorePlan } from "./scorer.js";
@@ -8,10 +9,23 @@ import { finalizePlan } from "./finalizer.js";
 
 const QUALITY_THRESHOLD = 70;
 
-export async function runPlanPipeline(payload: PlanJobPayload, options?: PlanPipelineOptions): Promise<PlanPipelineResult> {
+export async function runPlanPipeline(payloadArg: PlanJobPayload, options?: PlanPipelineOptions): Promise<PlanPipelineResult> {
   const startedAt = Date.now();
+  let payload = payloadArg;
 
   const retrievalStart = Date.now();
+  // Enrich payload from Jira if issueBody is empty and credentials are available
+  if (options?.jira && payload.provider === "jira" && !payload.issueBody) {
+    const jiraData = await fetchJiraIssue(options.jira, payload.workItemId);
+    if (jiraData) {
+      payload = {
+        ...payload,
+        issueTitle: jiraData.summary || payload.issueTitle,
+        issueBody: jiraData.description,
+        issueLabels: jiraData.labels.length > 0 ? jiraData.labels : payload.issueLabels,
+      };
+    }
+  }
   const retrieved = buildRetrievedContext(payload);
   const retrievalMs = Date.now() - retrievalStart;
 

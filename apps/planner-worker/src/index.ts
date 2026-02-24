@@ -44,6 +44,9 @@ for (;;) {
         ...(config.plannerCodexBin ? { codexBin: config.plannerCodexBin } : {}),
         ...(config.plannerClaudeBin ? { claudeBin: config.plannerClaudeBin } : {}),
       },
+      ...(config.jiraBaseUrl && config.jiraEmail && config.jiraApiToken
+        ? { jira: { baseUrl: config.jiraBaseUrl, email: config.jiraEmail, apiToken: config.jiraApiToken } }
+        : {}),
     });
     let slackCallback:
       | { attempted: true; ok: true; status: number; postedAt: string }

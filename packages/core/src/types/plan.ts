@@ -121,7 +121,14 @@ export interface PlannerLlmConfig {
   claudeBin?: string;
 }
 
+export interface JiraConfig {
+  baseUrl: string;
+  email: string;
+  apiToken: string;
+}
+
 export interface PlanPipelineOptions {
   mode?: PlanMode;
   llm?: PlannerLlmConfig;
+  jira?: JiraConfig;
 }
